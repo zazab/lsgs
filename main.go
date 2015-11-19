@@ -31,6 +31,27 @@ Options:
 	green = color.New(color.FgHiBlue).SprintFunc()
 )
 
+type Path struct {
+	path   string
+	linkTo string
+}
+
+func (path Path) String() string {
+	if path.linkTo != path.path {
+		return fmt.Sprintf("%s -> %s", path.path, path.linkTo)
+	}
+	return path.path
+}
+
+func newPath(path string) (Path, error) {
+	linkTo, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return Path{}, err
+	}
+
+	return Path{path, linkTo}, nil
+}
+
 func main() {
 	args, err := docopt.Parse(usage, nil, true, versionString, false, true)
 	if err != nil {
@@ -53,14 +74,18 @@ func main() {
 		}
 	}
 
-	err = listGitStatuses(workingDir, 1, maxDepth)
+	path, err := newPath(workingDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = listGitStatuses(path, 1, maxDepth)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func listGitStatuses(path string, depth, maxDepth int) error {
-	info, err := os.Stat(path)
+func listGitStatuses(path Path, depth, maxDepth int) error {
+	info, err := os.Stat(path.linkTo)
 	if err != nil {
 		return fmt.Errorf("can't stat '%s': %s", path, err)
 	}
@@ -69,24 +94,36 @@ func listGitStatuses(path string, depth, maxDepth int) error {
 		return nil
 	}
 
-	info, err = os.Stat(filepath.Join(path, ".git"))
+	info, err = os.Stat(filepath.Join(path.linkTo, ".git"))
 	switch {
 	case os.IsNotExist(err): // not a git repo
 		if depth > maxDepth {
-			fmt.Printf("%s\n", path)
+			fmt.Printf("  %s\n", path)
 			return nil
 		}
 
-		files, err := ioutil.ReadDir(path)
+		files, err := ioutil.ReadDir(path.path)
 		if err != nil {
 			return fmt.Errorf("can't read dir '%s': %s", path, err)
 		}
 
 		failed := false
 		for _, file := range files {
-			if file.IsDir() {
+			filePath, err := newPath(filepath.Join(path.path, file.Name()))
+			if err != nil {
+				failed = true
+				log.Println(err)
+				continue
+			}
+			info, err := os.Stat(filePath.linkTo)
+			if err != nil {
+				failed = true
+				log.Println(err)
+				continue
+			}
+			if info.IsDir() {
 				err := listGitStatuses(
-					filepath.Join(path, file.Name()), depth+1, maxDepth,
+					filePath, depth+1, maxDepth,
 				)
 				if err != nil {
 					failed = true
@@ -100,7 +137,7 @@ func listGitStatuses(path string, depth, maxDepth int) error {
 		return nil
 	case err == nil:
 		cmd := exec.Command("git", "status", "--porcelain")
-		cmd.Dir = path
+		cmd.Dir = path.linkTo
 		cmd.Stderr = os.Stderr
 
 		out, err := cmd.Output()
@@ -109,13 +146,15 @@ func listGitStatuses(path string, depth, maxDepth int) error {
 		}
 
 		if len(out) > 0 {
-			fmt.Printf("%s %s\n", path, red("✗"))
+			fmt.Printf("%s %s\n", red("✗"), path)
 		} else {
-			fmt.Printf("%s %s\n", path, green("•"))
+			fmt.Printf("%s %s\n", green("•"), path)
 		}
 		return nil
 	default:
-		return fmt.Errorf("can't stat '%s': %s", filepath.Join(path, ".git"))
+		return fmt.Errorf(
+			"can't stat '%s': %s", filepath.Join(path.path, ".git"),
+		)
 	}
 
 }
