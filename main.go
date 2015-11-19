@@ -108,6 +108,7 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 		}
 
 		failed := false
+		goneDeeper := false
 		for _, file := range files {
 			filePath, err := newPath(filepath.Join(path.path, file.Name()))
 			if err != nil {
@@ -133,6 +134,9 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 		}
 		if failed {
 			return errors.New("errors occured")
+		}
+		if !goneDeeper {
+			fmt.Printf("  %s\n", path)
 		}
 		return nil
 	case err == nil:
