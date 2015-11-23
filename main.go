@@ -23,8 +23,9 @@ Usage:
 	lsgs [<path>] [options]
 
 Options:
-	<path>  Path to working tree, which you want to list status
+	<path>               Path to working tree, which you want to list status
 	--max-depth <level>  maximum recursion depth [default: 1]
+	-d --dirty           show only dirty repos
 `
 
 	red   = color.New(color.FgHiRed).SprintFunc()
@@ -74,17 +75,20 @@ func main() {
 		}
 	}
 
+	onlyDirty := args["--dirty"].(bool)
+
 	path, err := newPath(workingDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = listGitStatuses(path, 1, maxDepth)
+
+	err = listGitStatuses(path, 1, maxDepth, onlyDirty)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func listGitStatuses(path Path, depth, maxDepth int) error {
+func listGitStatuses(path Path, depth, maxDepth int, onlyDirty bool) error {
 	info, err := os.Stat(path.linkTo)
 	if err != nil {
 		return fmt.Errorf("can't stat '%s': %s", path, err)
@@ -98,7 +102,9 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 	switch {
 	case os.IsNotExist(err): // not a git repo
 		if depth > maxDepth {
-			fmt.Printf("  %s\n", path)
+			if !onlyDirty {
+				fmt.Printf("  %s\n", path)
+			}
 			return nil
 		}
 
@@ -124,7 +130,7 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 			}
 			if info.IsDir() {
 				err := listGitStatuses(
-					filePath, depth+1, maxDepth,
+					filePath, depth+1, maxDepth, onlyDirty,
 				)
 				if err != nil {
 					failed = true
@@ -136,7 +142,9 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 			return errors.New("errors occured")
 		}
 		if !goneDeeper {
-			fmt.Printf("  %s\n", path)
+			if !onlyDirty {
+				fmt.Printf("  %s\n", path)
+			}
 		}
 		return nil
 	case err == nil:
@@ -152,7 +160,9 @@ func listGitStatuses(path Path, depth, maxDepth int) error {
 		if len(out) > 0 {
 			fmt.Printf("%s %s\n", red("✗"), path)
 		} else {
-			fmt.Printf("%s %s\n", green("•"), path)
+			if !onlyDirty {
+				fmt.Printf("%s %s\n", green("•"), path)
+			}
 		}
 		return nil
 	default:
