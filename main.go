@@ -21,15 +21,19 @@ var (
 
 Usage:
 	lsgs [<path>] [options]
+	lsgs -R [<path>] [options]
 
 Options:
 	<path>               Path to working tree, which you want to list status
-	--max-depth <level>  maximum recursion depth [default: 1]
-	-d --dirty           show only dirty repos
+	--max-depth <level>  Maximum recursion depth [default: 1]
+	-d --dirty           Show only dirty repos
+	-R --remote          Checks if repo is pushed to origin
 `
 
-	red   = color.New(color.FgHiRed).SprintFunc()
-	green = color.New(color.FgHiBlue).SprintFunc()
+	red        = color.New(color.FgHiRed).SprintFunc()
+	green      = color.New(color.FgHiBlue).SprintFunc()
+	pushCheck  = []string{"log", "@{push}.."}
+	dirtyCheck = []string{"status", "--porcelain"}
 )
 
 type Path struct {
@@ -82,13 +86,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = listGitStatuses(path, 1, maxDepth, onlyDirty)
+	gitCommandLine := dirtyCheck
+	if args["--remote"].(bool) {
+		gitCommandLine = pushCheck
+	}
+
+	err = walkDirs(path, 1, maxDepth, onlyDirty, gitCommandLine)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func listGitStatuses(path Path, depth, maxDepth int, onlyDirty bool) error {
+func walkDirs(
+	path Path, depth, maxDepth int, onlyDirty bool, gitCommandLine []string,
+) error {
 	info, err := os.Stat(path.linkTo)
 	if err != nil {
 		return fmt.Errorf("can't stat '%s': %s", path, err)
@@ -129,8 +140,8 @@ func listGitStatuses(path Path, depth, maxDepth int, onlyDirty bool) error {
 				continue
 			}
 			if info.IsDir() {
-				err := listGitStatuses(
-					filePath, depth+1, maxDepth, onlyDirty,
+				err := walkDirs(
+					filePath, depth+1, maxDepth, onlyDirty, gitCommandLine,
 				)
 				if err != nil {
 					failed = true
@@ -148,7 +159,7 @@ func listGitStatuses(path Path, depth, maxDepth int, onlyDirty bool) error {
 		}
 		return nil
 	case err == nil:
-		cmd := exec.Command("git", "status", "--porcelain")
+		cmd := exec.Command("git", gitCommandLine...)
 		cmd.Dir = path.linkTo
 		cmd.Stderr = os.Stderr
 
