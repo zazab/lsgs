@@ -29,6 +29,7 @@ Options:
 	--max-depth <level>  Maximum recursion depth [default: 1]
 	-d --dirty           Show only dirty repos
 	-R --remote          Checks if repo is pushed to origin
+	-q --quiet           Be quiet
 	-b --branch          Show repo branch
 `
 
@@ -37,13 +38,18 @@ Options:
 )
 
 type (
-	checkFunc func(Path, bool) error
+	checkFunc func(Path, bool, bool) error
 )
 
-func stdCheck(path Path, onlyDirty bool, commandLine ...string) error {
+func stdCheck(
+	path Path,
+	onlyDirty, quiet bool,
+	commandLine ...string) error {
 	cmd := exec.Command("git", commandLine...)
 	cmd.Dir = path.linkTo
-	cmd.Stderr = os.Stderr
+	if !quiet {
+		cmd.Stderr = os.Stderr
+	}
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -63,18 +69,20 @@ func stdCheck(path Path, onlyDirty bool, commandLine ...string) error {
 	return nil
 }
 
-func pushCheck(path Path, onlyDirty bool) error {
-	return stdCheck(path, onlyDirty, "log", "@{push}..")
+func pushCheck(path Path, onlyDirty, quiet bool) error {
+	return stdCheck(path, onlyDirty, quiet, "log", "@{push}..")
 }
 
-func dirtyCheck(path Path, onlyDirty bool) error {
-	return stdCheck(path, onlyDirty, "status", "--porcelain")
+func dirtyCheck(path Path, onlyDirty, quiet bool) error {
+	return stdCheck(path, onlyDirty, quiet, "status", "--porcelain")
 }
 
-func showBranch(path Path, onlyDirty bool) error {
+func showBranch(path Path, onlyDirty, quiet bool) error {
 	cmd := exec.Command("git", "branch", "--points-at", "HEAD")
 	cmd.Dir = path.linkTo
-	cmd.Stderr = os.Stderr
+	if !quiet {
+		cmd.Stderr = os.Stderr
+	}
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -137,6 +145,10 @@ func main() {
 	var (
 		workingDir string = "."
 		maxDepth   int
+
+		remote = args["--remote"].(bool)
+		branch = args["--branch"].(bool)
+		quiet  = args["--quiet"].(bool)
 	)
 
 	if args["<path>"] != nil {
@@ -159,22 +171,22 @@ func main() {
 
 	var checker checkFunc
 	switch {
-	case args["--remote"].(bool):
+	case remote:
 		checker = pushCheck
-	case args["--branch"].(bool):
+	case branch:
 		checker = showBranch
 	default:
 		checker = dirtyCheck
 	}
 
-	err = walkDirs(path, 1, maxDepth, onlyDirty, checker)
+	err = walkDirs(path, 1, maxDepth, onlyDirty, quiet, checker)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func walkDirs(
-	path Path, depth, maxDepth int, onlyDirty bool, checker checkFunc,
+	path Path, depth, maxDepth int, onlyDirty, quiet bool, checker checkFunc,
 ) error {
 	info, err := os.Stat(path.linkTo)
 	if err != nil {
@@ -217,7 +229,7 @@ func walkDirs(
 			}
 			if info.IsDir() {
 				err := walkDirs(
-					filePath, depth+1, maxDepth, onlyDirty, checker,
+					filePath, depth+1, maxDepth, onlyDirty, quiet, checker,
 				)
 				if err != nil {
 					failed = true
@@ -235,7 +247,7 @@ func walkDirs(
 		}
 		return nil
 	case err == nil:
-		return checker(path, onlyDirty)
+		return checker(path, onlyDirty, quiet)
 	default:
 		return fmt.Errorf(
 			"can't stat '%s': %s", filepath.Join(path.path, ".git"),
