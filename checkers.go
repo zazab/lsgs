@@ -7,7 +7,16 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/seletskiy/hierr"
+)
+
+var (
+	red   = color.New(color.FgHiRed).SprintFunc()
+	green = color.New(color.FgHiBlue).SprintFunc()
+
+	dirtyMarker = red("✗")
+	cleanMarker = green("•")
 )
 
 type checkFunc func(path, bool, bool) error
@@ -19,12 +28,12 @@ func stdCheck(path path, onlyDirty, quiet bool, commandLine ...string) error {
 	}
 
 	if out != "" {
-		fmt.Printf("%s %s\n", red("✗"), path)
+		fmt.Printf("%s %s\n", dirtyMarker, path)
 		return nil
 	}
 
 	if !onlyDirty {
-		fmt.Printf("%s %s\n", green("•"), path)
+		fmt.Printf("%s %s\n", cleanMarker, path)
 	}
 	return nil
 }
@@ -36,6 +45,10 @@ func pushCheck(path path, onlyDirty, quiet bool) error {
 	}
 
 	if strings.Contains(branch, "detached") {
+		if !onlyDirty {
+			fmt.Printf("%s %s\n", cleanMarker, path)
+		}
+
 		return nil
 	}
 

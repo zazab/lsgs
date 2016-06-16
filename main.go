@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/docopt/docopt-go"
-	"github.com/fatih/color"
 )
 
 var (
@@ -25,9 +24,6 @@ Options:
 	-q --quiet           Be quiet
 	-b --branch          Show repo branch
 `
-
-	red   = color.New(color.FgHiRed).SprintFunc()
-	green = color.New(color.FgHiBlue).SprintFunc()
 )
 
 func main() {
