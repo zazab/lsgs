@@ -14,15 +14,16 @@ var (
 Usage:
 	lsgs [<path>] [options]
 	lsgs -R [<path>] [options]
-	lsgs -b [<path>] [options]
+	lsgs -B [<path>] [options]
 
 Options:
+	-R                   Checks if repo is pushed to origin
+	-b                   Show repo branch
 	<path>               Path to working tree, which you want to list status [default: .]
 	--max-depth <level>  Maximum recursion depth [default: 1]
+	-r                   Alias for --max-depth 7
 	-d --dirty           Show only dirty repos
-	-R --remote          Checks if repo is pushed to origin
 	-q --quiet           Be quiet
-	-b --branch          Show repo branch
 `
 )
 
@@ -36,11 +37,17 @@ func main() {
 		maxDepth, _   = strconv.Atoi(args["--max-depth"].(string))
 		workingDir, _ = args["<path>"].(string)
 
+		remote = args["-R"].(bool)
+		branch = args["-b"].(bool)
+
 		onlyDirty = args["--dirty"].(bool)
-		remote    = args["--remote"].(bool)
-		branch    = args["--branch"].(bool)
 		quiet     = args["--quiet"].(bool)
+		recursive = args["-r"].(bool)
 	)
+
+	if recursive && maxDepth == 1 {
+		maxDepth = 7
+	}
 
 	if workingDir == "" {
 		workingDir = "."
