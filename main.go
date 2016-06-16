@@ -12,9 +12,9 @@ var (
 	usage         = versionString + `
 
 Usage:
-	lsgs [<path>] [options]
-	lsgs -R [<path>] [options]
-	lsgs -B [<path>] [options]
+	lsgs [<path>...] [options]
+	lsgs -R [<path>...] [options]
+	lsgs -B [<path>...] [options]
 
 Options:
 	-R                   Checks if repo is pushed to origin
@@ -34,8 +34,8 @@ func main() {
 	}
 
 	var (
-		maxDepth, _   = strconv.Atoi(args["--max-depth"].(string))
-		workingDir, _ = args["<path>"].(string)
+		maxDepth, _    = strconv.Atoi(args["--max-depth"].(string))
+		workingDirs, _ = args["<path>"].([]string)
 
 		remote = args["-R"].(bool)
 		branch = args["-b"].(bool)
@@ -49,13 +49,8 @@ func main() {
 		maxDepth = 7
 	}
 
-	if workingDir == "" {
-		workingDir = "."
-	}
-
-	path, err := newPath(workingDir)
-	if err != nil {
-		logger.Fatal(err)
+	if len(workingDirs) == 0 {
+		workingDirs = []string{"."}
 	}
 
 	var checker checkFunc
@@ -68,8 +63,16 @@ func main() {
 		checker = dirtyCheck
 	}
 
-	err = walkDirs(path, 1, maxDepth, onlyDirty, quiet, checker)
-	if err != nil {
-		logger.Fatal(err)
+	for _, workingDir := range workingDirs {
+		path, err := newPath(workingDir)
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		err = walkDirs(path, 1, maxDepth, onlyDirty, quiet, checker)
+		if err != nil {
+			logger.Error(err)
+		}
 	}
 }
