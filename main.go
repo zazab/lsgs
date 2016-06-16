@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -188,6 +187,11 @@ func main() {
 func walkDirs(
 	path Path, depth, maxDepth int, onlyDirty, quiet bool, checker checkFunc,
 ) error {
+	_, last := filepath.Split(path.linkTo)
+	if last == ".git" {
+		// skipping .git dir
+		return nil
+	}
 	info, err := os.Stat(path.linkTo)
 	if err != nil {
 		return fmt.Errorf("can't stat '%s': %s", path, err)
@@ -197,7 +201,7 @@ func walkDirs(
 		return nil
 	}
 
-	info, err = os.Stat(filepath.Join(path.linkTo, ".git"))
+	_, err = os.Stat(filepath.Join(path.linkTo, ".git"))
 	switch {
 	case os.IsNotExist(err): // not a git repo
 		if depth > maxDepth {
@@ -207,51 +211,68 @@ func walkDirs(
 			return nil
 		}
 
-		files, err := ioutil.ReadDir(path.path)
+		return goDeeper(path, depth, maxDepth, onlyDirty, quiet, checker)
+	case err == nil:
+		err = checker(path, onlyDirty, quiet)
 		if err != nil {
-			return fmt.Errorf("can't read dir '%s': %s", path, err)
+			log.Println(err)
 		}
 
-		failed := false
-		goneDeeper := false
-		for _, file := range files {
-			filePath, err := newPath(filepath.Join(path.path, file.Name()))
-			if err != nil {
-				failed = true
-				log.Println(err)
-				continue
-			}
-			info, err := os.Stat(filePath.linkTo)
-			if err != nil {
-				failed = true
-				log.Println(err)
-				continue
-			}
-			if info.IsDir() {
-				err := walkDirs(
-					filePath, depth+1, maxDepth, onlyDirty, quiet, checker,
-				)
-				if err != nil {
-					failed = true
-					log.Println(err)
-				}
-			}
+		_, err = os.Stat(filepath.Join(path.linkTo, ".gitmodules"))
+		switch {
+		case os.IsNotExist(err):
+			// no submodules
+			return nil
+		case err == nil:
+			// repo has submodules, checking them
+			return goDeeper(path, depth, maxDepth, onlyDirty, quiet, checker)
+		default:
+			return fmt.Errorf(
+				"can't stat '%s': %s", filepath.Join(path.path, ".git"),
+			)
 		}
-		if failed {
-			return errors.New("errors occured")
-		}
-		if !goneDeeper {
-			if !onlyDirty {
-				fmt.Printf("  %s\n", path)
-			}
-		}
-		return nil
-	case err == nil:
-		return checker(path, onlyDirty, quiet)
 	default:
 		return fmt.Errorf(
 			"can't stat '%s': %s", filepath.Join(path.path, ".git"),
 		)
 	}
+
+}
+
+func goDeeper(
+	path Path, depth, maxDepth int, onlyDirty, quiet bool, checker checkFunc,
+) error {
+	files, err := ioutil.ReadDir(path.path)
+	if err != nil {
+		return fmt.Errorf("can't read dir '%s': %s", path, err)
+	}
+
+	goneDeeper := false
+	for _, file := range files {
+		filePath, err := newPath(filepath.Join(path.path, file.Name()))
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		info, err := os.Stat(filePath.linkTo)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if info.IsDir() {
+			err := walkDirs(
+				filePath, depth+1, maxDepth, onlyDirty, quiet, checker,
+			)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+	}
+	if !goneDeeper {
+		if !onlyDirty {
+			fmt.Printf("  %s\n", path)
+		}
+	}
+	return nil
 
 }
