@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/docopt/docopt-go"
 	"github.com/fatih/color"
@@ -28,13 +29,83 @@ Options:
 	--max-depth <level>  Maximum recursion depth [default: 1]
 	-d --dirty           Show only dirty repos
 	-R --remote          Checks if repo is pushed to origin
+	-b --branch          Show repo branch
 `
 
-	red        = color.New(color.FgHiRed).SprintFunc()
-	green      = color.New(color.FgHiBlue).SprintFunc()
-	pushCheck  = []string{"log", "@{push}.."}
-	dirtyCheck = []string{"status", "--porcelain"}
+	red   = color.New(color.FgHiRed).SprintFunc()
+	green = color.New(color.FgHiBlue).SprintFunc()
 )
+
+type (
+	checkFunc func(Path, bool) error
+)
+
+func stdCheck(path Path, onlyDirty bool, commandLine ...string) error {
+	cmd := exec.Command("git", commandLine...)
+	cmd.Dir = path.linkTo
+	cmd.Stderr = os.Stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf(
+			"error running 'git %s' in '%s': %s",
+			strings.Join(commandLine, " "), path.linkTo, err,
+		)
+	}
+
+	if len(out) > 0 {
+		fmt.Printf("%s %s\n", red("✗"), path)
+	} else {
+		if !onlyDirty {
+			fmt.Printf("%s %s\n", green("•"), path)
+		}
+	}
+	return nil
+}
+
+func pushCheck(path Path, onlyDirty bool) error {
+	return stdCheck(path, onlyDirty, "log", "@{push}..")
+}
+
+func dirtyCheck(path Path, onlyDirty bool) error {
+	return stdCheck(path, onlyDirty, "status", "--porcelain")
+}
+
+func showBranch(path Path, onlyDirty bool) error {
+	cmd := exec.Command("git", "branch", "--points-at", "HEAD")
+	cmd.Dir = path.linkTo
+	cmd.Stderr = os.Stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf(
+			"error running 'git branch' in '%s': %s", path.linkTo, err,
+		)
+	}
+
+	branches := strings.Split(string(out), "\n")
+
+	var currentBranch string
+	for _, branch := range branches {
+		if branch == "" {
+			continue
+		}
+		if branch[0] == '*' {
+			currentBranch = strings.TrimLeft(string(branch), "* ")
+			currentBranch = strings.TrimRight(currentBranch, "\n")
+			break
+		}
+	}
+
+	if currentBranch == "master" {
+		currentBranch = green(currentBranch)
+	} else {
+		currentBranch = red(currentBranch)
+	}
+
+	fmt.Printf("%s %s\n", path, currentBranch)
+	return nil
+}
 
 type Path struct {
 	path   string
@@ -86,19 +157,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	gitCommandLine := dirtyCheck
-	if args["--remote"].(bool) {
-		gitCommandLine = pushCheck
+	var checker checkFunc
+	switch {
+	case args["--remote"].(bool):
+		checker = pushCheck
+	case args["--branch"].(bool):
+		checker = showBranch
+	default:
+		checker = dirtyCheck
 	}
 
-	err = walkDirs(path, 1, maxDepth, onlyDirty, gitCommandLine)
+	err = walkDirs(path, 1, maxDepth, onlyDirty, checker)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func walkDirs(
-	path Path, depth, maxDepth int, onlyDirty bool, gitCommandLine []string,
+	path Path, depth, maxDepth int, onlyDirty bool, checker checkFunc,
 ) error {
 	info, err := os.Stat(path.linkTo)
 	if err != nil {
@@ -141,7 +217,7 @@ func walkDirs(
 			}
 			if info.IsDir() {
 				err := walkDirs(
-					filePath, depth+1, maxDepth, onlyDirty, gitCommandLine,
+					filePath, depth+1, maxDepth, onlyDirty, checker,
 				)
 				if err != nil {
 					failed = true
@@ -159,23 +235,7 @@ func walkDirs(
 		}
 		return nil
 	case err == nil:
-		cmd := exec.Command("git", gitCommandLine...)
-		cmd.Dir = path.linkTo
-		cmd.Stderr = os.Stderr
-
-		out, err := cmd.Output()
-		if err != nil {
-			return fmt.Errorf("error running 'git status': %s", err)
-		}
-
-		if len(out) > 0 {
-			fmt.Printf("%s %s\n", red("✗"), path)
-		} else {
-			if !onlyDirty {
-				fmt.Printf("%s %s\n", green("•"), path)
-			}
-		}
-		return nil
+		return checker(path, onlyDirty)
 	default:
 		return fmt.Errorf(
 			"can't stat '%s': %s", filepath.Join(path.path, ".git"),
