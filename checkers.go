@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -20,6 +21,46 @@ var (
 )
 
 type checkFunc func(path, bool, bool) error
+
+func getCurrentBranch(dir string, quiet bool) (string, error) {
+	out, err := execute(dir, quiet, "branch", "--points-at", "HEAD")
+	if err != nil {
+		return "", err
+	}
+
+	branches := strings.Split(out, "\n")
+
+	for _, branch := range branches {
+		if branch[0] == '*' {
+			branch = strings.TrimLeft(branch, "* ")
+			branch = strings.TrimRight(branch, "\n")
+			return strings.TrimSpace(branch), nil
+		}
+	}
+
+	return "", errors.New("can't find current branch")
+}
+
+func isTracked(dir string, quiet bool) (bool, error) {
+	out, err := execute(dir, quiet, "status", "--porcelain", "-b")
+	if err != nil {
+		return false, err
+	}
+
+	branchInfo := strings.Split(out, "\n")[0]
+	trackedReg := regexp.MustCompile(`## [^.]+\.\.\.[^/]+/.+`)
+
+	return trackedReg.MatchString(branchInfo), nil
+}
+
+func isDetachedHead(dir string, quiet bool) (bool, error) {
+	branch, err := getCurrentBranch(dir, quiet)
+	if err != nil {
+		return false, err
+	}
+
+	return strings.Contains(branch, "detached"), nil
+}
 
 func stdCheck(path path, onlyDirty, quiet bool, commandLine ...string) error {
 	out, err := execute(path.linkTo, quiet, commandLine...)
@@ -39,16 +80,26 @@ func stdCheck(path path, onlyDirty, quiet bool, commandLine ...string) error {
 }
 
 func pushCheck(path path, onlyDirty, quiet bool) error {
-	branch, err := getCurrentBranch(path.linkTo, quiet)
+	detached, err := isDetachedHead(path.linkTo, quiet)
 	if err != nil {
 		return err
 	}
 
-	if strings.Contains(branch, "detached") {
+	if detached {
 		if !onlyDirty {
 			fmt.Printf("%s %s\n", cleanMarker, path)
 		}
 
+		return nil
+	}
+
+	tracked, err := isTracked(path.linkTo, quiet)
+	if err != nil {
+		return err
+	}
+
+	if !tracked {
+		fmt.Printf("%s %s %s\n", dirtyMarker, path, red("(not tracked)"))
 		return nil
 	}
 
@@ -57,25 +108,6 @@ func pushCheck(path path, onlyDirty, quiet bool) error {
 
 func dirtyCheck(path path, onlyDirty, quiet bool) error {
 	return stdCheck(path, onlyDirty, quiet, "status", "--porcelain")
-}
-
-func getCurrentBranch(dir string, quiet bool) (string, error) {
-	out, err := execute(dir, quiet, "branch", "--points-at", "HEAD")
-	if err != nil {
-		return "", err
-	}
-
-	branches := strings.Split(out, "\n")
-
-	for _, branch := range branches {
-		if branch[0] == '*' {
-			branch = strings.TrimLeft(branch, "* ")
-			branch = strings.TrimRight(branch, "\n")
-			return strings.TrimSpace(branch), nil
-		}
-	}
-
-	return "", errors.New("can't find current branch")
 }
 
 func showBranch(path path, onlyDirty, quiet bool) error {
