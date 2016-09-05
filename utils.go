@@ -11,6 +11,23 @@ import (
 	"github.com/seletskiy/hierr"
 )
 
+func printUntracked(path path, postfix ...string) {
+	if len(postfix) > 0 {
+		fmt.Printf("%s %s %s\n", untrackedMarker, path, yellow(postfix[0]))
+	} else {
+		fmt.Printf("%s %s\n", untrackedMarker, path)
+	}
+}
+
+
+func printEmpty(path path, postfix ...string) {
+	if len(postfix) > 0 {
+		fmt.Printf("%s %s %s\n", emptyMarker, path, blue(postfix[0]))
+	} else {
+		fmt.Printf("%s %s\n", emptyMarker, path)
+	}
+}
+
 func printDirty(path path, postfix ...string) {
 	if len(postfix) > 0 {
 		fmt.Printf("%s %s %s\n", dirtyMarker, path, red(postfix[0]))
@@ -49,6 +66,37 @@ func getCurrentBranch(dir string, quiet bool) (string, error) {
 
 	return "", errors.New("can't find current branch")
 }
+
+func isEmpty(dir string, quiet bool) (bool, error) {
+	out, err := execute(dir, quiet, "branch", "-lr")
+	if err != nil {
+		return false, err
+	}
+
+	if len(out) == 0 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func isUntracked(dir string, quiet bool) (bool, error) {
+	out, err := execute(dir, quiet, "status", "--porcelain", "-b")
+	if err != nil {
+		return false, err
+	}
+
+
+	untrackedRegexp := regexp.MustCompile(`^\?\?\s`)
+	for _, row := range strings.Split(out, "\n") {
+		if untrackedRegexp.MatchString(row) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 
 func isTracked(dir string, quiet bool) (bool, error) {
 	out, err := execute(dir, quiet, "status", "--porcelain", "-b")
