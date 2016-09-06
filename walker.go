@@ -57,13 +57,19 @@ func goDeeper(
 	for _, file := range files {
 		filePath, err := newPath(filepath.Join(path.path, file.Name()))
 		if err != nil {
-			logger.Error(err)
+			if !os.IsNotExist(err) {
+				logger.Error(err)
+			}
+
 			continue
 		}
 
 		info, err := os.Stat(filePath.linkTo)
 		if err != nil {
-			logger.Error(err)
+			if !os.IsNotExist(err) {
+				logger.Error(err)
+			}
+
 			continue
 		}
 

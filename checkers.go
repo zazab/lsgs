@@ -7,15 +7,29 @@ import (
 
 var (
 	red   = color.New(color.FgHiRed).SprintFunc()
-	green = color.New(color.FgHiBlue).SprintFunc()
+	green = color.New(color.FgHiGreen).SprintFunc()
+	blue  = color.New(color.FgBlue).SprintFunc()
+	yellow  = color.New(color.FgHiYellow).SprintFunc()
 
 	dirtyMarker = red("✗")
-	cleanMarker = green("•")
+	cleanMarker = green("✓")
+	emptyMarker = blue("∅")
+	untrackedMarker = yellow("?")
 )
 
 type checkFunc func(path, bool, bool) error
 
 func pushCheck(path path, onlyDirty, quiet bool) error {
+	empty, err := isEmpty(path.linkTo, quiet)
+	if err != nil {
+		return err
+	}
+
+	if empty {
+		printEmpty(path, "(empty)")
+		return nil
+	}
+
 	detached, err := isDetachedHead(path.linkTo, quiet)
 	if err != nil {
 		return err
@@ -33,6 +47,16 @@ func pushCheck(path path, onlyDirty, quiet bool) error {
 
 	if !tracked {
 		printDirty(path, "(not tracked)")
+		return nil
+	}
+
+	untracked, err := isUntracked(path.linkTo, quiet)
+	if err != nil {
+		return err
+	}
+
+	if untracked {
+		printUntracked(path, "(untracked)")
 		return nil
 	}
 
