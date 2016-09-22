@@ -19,7 +19,6 @@ func printUntracked(path path, postfix ...string) {
 	}
 }
 
-
 func printEmpty(path path, postfix ...string) {
 	if len(postfix) > 0 {
 		fmt.Printf("%s %s %s\n", emptyMarker, path, blue(postfix[0]))
@@ -45,6 +44,14 @@ func printClean(path path, onlyDirty bool, postfix ...string) {
 		fmt.Printf("%s %s %s\n", cleanMarker, path, green(postfix[0]))
 	} else {
 		fmt.Printf("%s %s\n", cleanMarker, path)
+	}
+}
+
+func printUnpushed(path path, postfix ...string) {
+	if len(postfix) > 0 {
+		fmt.Printf("%s %s %s\n", unpushedMarker, path, yellow(postfix[0]))
+	} else {
+		fmt.Printf("%s %s\n", unpushedMarker, path)
 	}
 }
 
@@ -86,7 +93,6 @@ func isUntracked(dir string, quiet bool) (bool, error) {
 		return false, err
 	}
 
-
 	untrackedRegexp := regexp.MustCompile(`^\?\?\s`)
 	for _, row := range strings.Split(out, "\n") {
 		if untrackedRegexp.MatchString(row) {
@@ -96,7 +102,6 @@ func isUntracked(dir string, quiet bool) (bool, error) {
 
 	return false, nil
 }
-
 
 func isTracked(dir string, quiet bool) (bool, error) {
 	out, err := execute(dir, quiet, "status", "--porcelain", "-b")

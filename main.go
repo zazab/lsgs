@@ -18,7 +18,7 @@ Usage:
 
 Options:
     -R                   Checks if repo is pushed to origin. Repo is marked as
-                         dirity if repo is not in detached HEAD state and if :
+                         dirity if repo is not in detached HEAD state and if:
                           * branch has not pushed commits
                           * repo is in dirty state (marked as "(dirty)")
                           * current branch has no tracking information
