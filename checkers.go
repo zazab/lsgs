@@ -6,14 +6,15 @@ import (
 )
 
 var (
-	red   = color.New(color.FgHiRed).SprintFunc()
-	green = color.New(color.FgHiGreen).SprintFunc()
-	blue  = color.New(color.FgBlue).SprintFunc()
-	yellow  = color.New(color.FgHiYellow).SprintFunc()
+	red    = color.New(color.FgHiRed).SprintFunc()
+	green  = color.New(color.FgHiGreen).SprintFunc()
+	blue   = color.New(color.FgBlue).SprintFunc()
+	yellow = color.New(color.FgHiYellow).SprintFunc()
 
-	dirtyMarker = red("✗")
-	cleanMarker = green("✓")
-	emptyMarker = blue("∅")
+	dirtyMarker     = red("✗")
+	unpushedMarker  = yellow("↑")
+	cleanMarker     = green("✓")
+	emptyMarker     = blue("∅")
 	untrackedMarker = yellow("?")
 )
 
@@ -78,7 +79,7 @@ func pushCheck(path path, onlyDirty, quiet bool) error {
 	if pushed {
 		printClean(path, onlyDirty)
 	} else {
-		printDirty(path)
+		printUnpushed(path)
 	}
 
 	return nil
