@@ -23,7 +23,7 @@ Options:
                           * repo is in dirty state (marked as "(dirty)")
                           * current branch has no tracking information
                             (marked as "(not tracked)")
-    -b                   Show repo branch. Repo marked as dirty if branch
+    -B                   Show repo branch. Repo marked as dirty if branch
                          differs from master.
     <path>               Path to working tree, which you want to list status.
                          Supports multiple paths. [default: .]
@@ -45,7 +45,7 @@ func main() {
 		workingDirs, _ = args["<path>"].([]string)
 
 		remote = args["-R"].(bool)
-		branch = args["-b"].(bool)
+		branch = args["-B"].(bool)
 
 		onlyDirty = args["--dirty"].(bool)
 		quiet     = args["--quiet"].(bool)
