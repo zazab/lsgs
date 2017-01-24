@@ -1,8 +1,8 @@
 # lsgs
-If you have to work with tons of different git repositories, regulary switching
+If you have to work with tons of different git repositories, regularly switching
 context from one to another, then lsgs will help to track it state with ease.
 
-### Istallation
+### Installation
 `go get github.com/zazab/lsgs`
 
 ### Usage
