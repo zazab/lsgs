@@ -5,10 +5,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 func walkDirs(
 	path path, depth, maxDepth int, onlyDirty, quiet bool, checker checkFunc,
+	exclude *regexp.Regexp,
 ) error {
 	_, last := filepath.Split(path.linkTo)
 	if last == ".git" {
@@ -43,11 +45,12 @@ func walkDirs(
 		return nil
 	}
 
-	return goDeeper(path, depth, maxDepth, onlyDirty, quiet, checker)
+	return goDeeper(path, depth, maxDepth, onlyDirty, quiet, checker, exclude)
 }
 
 func goDeeper(
 	path path, depth, maxDepth int, onlyDirty, quiet bool, checker checkFunc,
+	exclude *regexp.Regexp,
 ) error {
 	files, err := ioutil.ReadDir(path.path)
 	if err != nil {
@@ -74,8 +77,12 @@ func goDeeper(
 		}
 
 		if info.IsDir() {
+			if exclude != nil && exclude.MatchString(info.Name()) {
+				continue
+			}
+
 			err := walkDirs(
-				filePath, depth+1, maxDepth, onlyDirty, quiet, checker,
+				filePath, depth+1, maxDepth, onlyDirty, quiet, checker, exclude,
 			)
 			if err != nil {
 				logger.Error(err)

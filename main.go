@@ -1,11 +1,14 @@
 package main
 
 import (
+	"regexp"
 	"strconv"
 
 	"github.com/docopt/docopt-go"
+	"github.com/reconquest/ser-go"
 )
 
+//noinspection ProblematicWhitespace
 var (
 	version       = "1.0"
 	versionString = "lsgs " + version
@@ -29,6 +32,7 @@ Options:
                          Supports multiple paths. [default: .]
     --max-depth <level>  Maximum recursion depth [default: 1]
     -r                   Alias for --max-depth 7
+    -x <pattern>         Exlude directories matching pattern
     -d --dirty           Show only dirty repos
     -q --quiet           Be quiet
 `
@@ -47,6 +51,9 @@ func main() {
 		remote = args["-R"].(bool)
 		branch = args["-B"].(bool)
 
+		exclude, _ = args["-x"].(string)
+		dirRegexp *regexp.Regexp
+
 		onlyDirty = args["--dirty"].(bool)
 		quiet     = args["--quiet"].(bool)
 		recursive = args["-r"].(bool)
@@ -58,6 +65,13 @@ func main() {
 
 	if len(workingDirs) == 0 {
 		workingDirs = []string{"."}
+	}
+
+	if exclude != "" {
+		dirRegexp, err = regexp.Compile(exclude)
+		if err != nil {
+			logger.Fatal(ser.Errorf(err, "can't compile regexp '%s'", exclude))
+		}
 	}
 
 	var checker checkFunc
@@ -77,7 +91,7 @@ func main() {
 			continue
 		}
 
-		err = walkDirs(path, 1, maxDepth, onlyDirty, quiet, checker)
+		err = walkDirs(path, 1, maxDepth, onlyDirty, quiet, checker, dirRegexp)
 		if err != nil {
 			logger.Error(err)
 		}
