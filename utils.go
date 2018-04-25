@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/seletskiy/hierr"
+	"github.com/reconquest/hierr-go"
 )
 
 func printUntracked(path path, postfix ...string) {
