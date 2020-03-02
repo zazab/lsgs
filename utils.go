@@ -134,12 +134,37 @@ func isDirty(dir string, quiet bool) (bool, error) {
 }
 
 func isPushed(dir string, quiet bool) (bool, error) {
+	isStray, err := isStrayBranch(dir)
+	if err != nil {
+		return false, err
+	}
+
+	if isStray {
+		return false, nil
+	}
+
 	out, err := execute(dir, quiet, "log", "@{push}..")
 	if err != nil {
 		return false, err
 	}
 
 	return out == "", nil
+}
+
+func isStrayBranch(dir string) (bool, error) {
+	cmd := exec.Command("git", "rev-parse", "-q", "--verify", "@{push}")
+	cmd.Dir = dir
+
+	err := cmd.Run()
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return true, nil
+		}
+
+		return false, err
+	}
+
+	return false, nil
 }
 
 func execute(dir string, quiet bool, commandLine ...string) (string, error) {
