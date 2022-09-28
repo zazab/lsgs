@@ -3,12 +3,13 @@ package main
 import (
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/docopt/docopt-go"
 	"github.com/reconquest/ser-go"
 )
 
-//noinspection ProblematicWhitespace
+// noinspection ProblematicWhitespace
 var (
 	version       = "1.0"
 	versionString = "lsgs " + version
@@ -20,6 +21,9 @@ Usage:
     lsgs -B [<path>...] [options]
 
 Options:
+    -D                   Shows last commit date. Repo is marked as dirty if
+						 last commit is less than OFFSET hours ago.
+						 (Controlled by --offset flag)
     -R                   Checks if repo is pushed to origin. Repo is marked as
                          dirity if repo is not in detached HEAD state and if:
                           * branch has not pushed commits
@@ -32,6 +36,7 @@ Options:
                          Supports multiple paths. [default: .]
     --max-depth <level>  Maximum recursion depth [default: 1]
     -r                   Alias for --max-depth 7
+	--offset <offset>    Offset to treat repo as dirty with date checker [default: 24h]
     -x <pattern>         Exlude directories matching pattern
     -d --dirty           Show only dirty repos
     -q --quiet           Be quiet
@@ -50,9 +55,11 @@ func main() {
 
 		remote = args["-R"].(bool)
 		branch = args["-B"].(bool)
+		date   = args["-D"].(bool)
 
 		exclude, _ = args["-x"].(string)
-		dirRegexp *regexp.Regexp
+		dirRegexp  *regexp.Regexp
+		offsetStr  = args["--offset"].(string)
 
 		onlyDirty = args["--dirty"].(bool)
 		quiet     = args["--quiet"].(bool)
@@ -74,8 +81,15 @@ func main() {
 		}
 	}
 
+	offset, err := time.ParseDuration(offsetStr)
+	if err != nil {
+		logger.Fatal(ser.Errorf(err, "can't parse offset to duration '%s'", offsetStr))
+	}
+
 	var checker checkFunc
 	switch {
+	case date:
+		checker = newDateChecker(offset)
 	case remote:
 		checker = pushCheck
 	case branch:

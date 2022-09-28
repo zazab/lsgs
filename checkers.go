@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/fatih/color"
 	"github.com/reconquest/hierr-go"
 )
@@ -19,6 +21,35 @@ var (
 )
 
 type checkFunc func(path, bool, bool) error
+
+func newDateChecker(offset time.Duration) func(path, bool, bool) error {
+	threshold := time.Now().Add(-offset)
+
+	return func(path path, onlyDirty, quiet bool) error {
+		empty, err := isEmpty(path.linkTo, quiet)
+		if err != nil {
+			return err
+		}
+
+		if empty {
+			printEmpty(path, "(empty)")
+			return nil
+		}
+
+		commitDate, err := lastCommitDate(path.linkTo, quiet)
+		if err != nil {
+			return err
+		}
+
+		if commitDate.After(threshold) {
+			printDirty(path, commitDate.Format(time.RFC3339))
+		} else {
+			printClean(path, onlyDirty, commitDate.Format(time.RFC3339))
+		}
+
+		return nil
+	}
+}
 
 func pushCheck(path path, onlyDirty, quiet bool) error {
 	empty, err := isEmpty(path.linkTo, quiet)

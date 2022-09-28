@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/reconquest/hierr-go"
 )
@@ -122,6 +124,26 @@ func isDetachedHead(dir string, quiet bool) (bool, error) {
 	}
 
 	return strings.Contains(branch, "detached"), nil
+}
+
+func lastCommitDate(dir string, quiet bool) (time.Time, error) {
+	out, err := execute(dir, quiet, "log", "-1", "--format=%ct")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	out = strings.TrimSpace(out)
+	//out = strings.Replace(out, "+", "Z", -1)
+	//out = out[:len(out)-7]
+
+	timestamp, err := strconv.ParseInt(out, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	date := time.Unix(timestamp, 0)
+
+	return date, nil
 }
 
 func isDirty(dir string, quiet bool) (bool, error) {
